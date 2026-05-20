@@ -8,25 +8,38 @@ import { createServer as createViteServer } from "vite";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Enable JSON parser with larger limits for audio files or large text inputs
 app.use(express.json({ limit: "10mb" }));
 
 // Initialize Gemini Client
-const apiKey = process.env.GEMINI_API_KEY;
-const ai = new GoogleGenAI({
-  apiKey: apiKey,
-  httpOptions: {
-    headers: {
-      "User-Agent": "aistudio-build",
-    },
-  },
-});
+let aiClient: GoogleGenAI | null = null;
+function getAiClient(): GoogleGenAI {
+  if (!aiClient) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      console.warn("⚠️ Warning: GEMINI_API_KEY environment variable is not set on the server.");
+    }
+    aiClient = new GoogleGenAI({
+      apiKey: key || "DUMMY_KEY_UNCONFIGURED",
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+  }
+  return aiClient;
+}
 
 // Helper for AI responses
 async function generateAiContent(prompt: string, config: any) {
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is not set on the server's environment variables. Please configure GEMINI_API_KEY in Render's Environment Variables settings.");
+    }
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",
       contents: prompt,
@@ -34,9 +47,268 @@ async function generateAiContent(prompt: string, config: any) {
     });
     return response.text;
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
+    console.error("Gemini API Error caught inside helper:", error);
     throw new Error(error.message || "Failed to generate AI response");
   }
+}
+
+// --- INTELLIGENT COMPREHENSIVE RECOVERY FALLBACK GENERATORS (QUOTA & API KEY FAILURE SAFEGUARDS) ---
+
+function getChatFallback(userLatestMessage: string, character: any, level: string, focus: string) {
+  const cleanInput = (userLatestMessage || "").trim().toLowerCase();
+  const contextName = character?.context || "coffee shop";
+  
+  let reply = "That is so fascinating! I really appreciate you sharing that with me. What do you think is the most interesting part of that experience?";
+  
+  if (cleanInput.includes("hello") || cleanInput.includes("hey") || cleanInput.includes("hi")) {
+    reply = `Hello there! It's absolutely wonderful to connect with you here in our ${contextName}. How are you doing today?`;
+  } else if (cleanInput.includes("how are you")) {
+    reply = "I am doing excellently, thank you for asking! I'm really enjoying this moment and looking forward to our practice session. How is your day going?";
+  } else if (cleanInput.includes("thank")) {
+    reply = "Oh, you are very welcome! It is a true pleasure practicing English with you. Feel free to bring up any topic you'd like.";
+  } else if (cleanInput.includes("weather") || cleanInput.includes("rain") || cleanInput.includes("sun")) {
+    reply = "The weather has a strange way of affecting our plans and mood, doesn't it? How is the weather over on your side right now?";
+  } else if (cleanInput.length < 10) {
+    reply = "Ah, I see! Could you elaborate on that a tiny bit more? I would love to hear more of your thoughts.";
+  }
+
+  const originalText = userLatestMessage || "";
+  let grammarScore = 95;
+  const corrections: any[] = [];
+  const vocabularyBoosters: any[] = [];
+  const pronunciationTips: any[] = [];
+  const communicationTips = "Your tone is warm, polite, and perfectly suitable for this conversational roleplay. Keep it up!";
+
+  // Capitalization of "I"
+  if (/\bi\b/.test(originalText)) {
+    corrections.push({
+      error: "'i' in lowercase form",
+      correction: "'I' (always capitalized)",
+      explanation: "In standard English writing, the first-person singular pronoun 'I' must always be capitalized."
+    });
+    grammarScore -= 10;
+  }
+  
+  // Basic verb agreements
+  if (cleanInput.includes("how is you") || cleanInput.includes("you is")) {
+    corrections.push({
+      error: "Incorrect pronoun-verb agreement with 'you'",
+      correction: "'how are you' / 'you are'",
+      explanation: "The pronoun 'you' requires the plural form of the present tense verb 'are'."
+    });
+    grammarScore -= 15;
+  }
+
+  if (cleanInput.includes("i am agree") || cleanInput.includes("i'm agree")) {
+    corrections.push({
+      error: "'I am agree'",
+      correction: "'I agree'",
+      explanation: "In English, 'agree' is a primary action verb. We express agreement directly as 'I agree' rather than 'I am agree'."
+    });
+    grammarScore -= 15;
+  }
+
+  if (cleanInput.includes("dont ") || cleanInput.includes("cant ") || cleanInput.includes("im ")) {
+    const term = cleanInput.includes("dont ") ? "don't" : cleanInput.includes("cant ") ? "can't" : "I'm";
+    corrections.push({
+      error: "Missing contraction punctuation",
+      correction: term,
+      explanation: "A contraction like don't or can't requires an apostrophe to construct standard written English."
+    });
+    grammarScore -= 5;
+  }
+
+  // Smart vocabulary recommendations
+  if (cleanInput.includes("good")) {
+    vocabularyBoosters.push({
+      originalWord: "good",
+      betterWord: "exquisite / superb",
+      meaning: "Extremely pleasing, beautiful, or of elevated quality.",
+      example: "Our conversational practice is a superb opportunity to enhance your comfort with English."
+    });
+  } else if (cleanInput.includes("happy")) {
+    vocabularyBoosters.push({
+      originalWord: "happy",
+      betterWord: "delighted / thrilled",
+      meaning: "Extremely pleased, full of joyful excitement.",
+      example: "I am absolutely thrilled to accompany you on your learning journey."
+    });
+  } else {
+    vocabularyBoosters.push({
+      originalWord: "important",
+      betterWord: "paramount / indispensable",
+      meaning: "Of supreme significance; absolutely necessary and irreplaceable.",
+      example: "Consistent, daily speech practice is paramount to attaining long-term English fluency."
+    });
+  }
+
+  // Phonetic/pronunciation tricky letters
+  const words = originalText.split(/\s+/);
+  const pronDict = [
+    { word: "comfortable", phonetic: "kum-f-tuh-buhl", tip: "The letter 'o' in the second syllable is completely silent. Skip saying com-for-ta-ble." },
+    { word: "schedule", phonetic: "skej-ool", tip: "In North American English, pronounce the starting 'sch' as a hard 'sk' sound." },
+    { word: "accent", phonetic: "ak-sent", tip: "Emphasize and place the focal stress heavily on the first 'ak' syllable." },
+    { word: "pronunciation", phonetic: "pro-nun-see-ay-shun", tip: "Watch the middle syllable sound: it is 'nun' rather than 'noun'." },
+    { word: "the", phonetic: "thuh", tip: "Gently position your tongue between your lower and upper teeth for a clean voiced 'th' airflow." }
+  ];
+
+  let addedTip = false;
+  for (const w of words) {
+    const cleanWordStr = w.toLowerCase().replace(/[^a-z]/g, "");
+    const matchingTip = pronDict.find(t => t.word === cleanWordStr);
+    if (matchingTip) {
+      pronunciationTips.push(matchingTip);
+      addedTip = true;
+      break;
+    }
+  }
+
+  if (!addedTip) {
+    pronunciationTips.push({
+      word: words[0] || "fluency",
+      phonetic: "floo-uhn-see",
+      tip: "Ensure the initial 'floo' vowel glide is sustained and relaxed, transitioning cleanly into 'see'."
+    });
+  }
+
+  return {
+    reply,
+    isFallback: true,
+    feedback: {
+      originalText,
+      correctedText: corrections.length > 0 ? null : originalText,
+      grammarScore: Math.max(50, grammarScore),
+      corrections,
+      vocabularyBoosters,
+      pronunciationTips,
+      communicationTips
+    }
+  };
+}
+
+function getAnalyzeFallback(text: string, focus: string) {
+  const sentenceCount = text.split(/[.!?]+/).filter(Boolean).length || 1;
+  const wordCount = text.split(/\s+/).filter(Boolean).length || 1;
+  const readabilityScore = Math.min(100, Math.max(30, 100 - (wordCount / sentenceCount) * 1.5 - (text.length > 200 ? 10 : 0)));
+  
+  const originalSentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const breakdown = originalSentences.map((sent) => {
+    const sentLower = sent.toLowerCase();
+    let status = "correct";
+    let suggestion = sent;
+    let details = "This sentence is grammatically sound, complete, and highly natural.";
+
+    if (sentLower.includes(" i ")) {
+      status = "needs_improvement";
+      suggestion = sent.replace(/\bi\b/g, "I");
+      details = "Capitalize the first-person singular pronoun 'I' to align with formal writing standards.";
+    } else if (sentLower.includes("dont") || sentLower.includes("cant") || sentLower.includes("im")) {
+      status = "needs_improvement";
+      suggestion = sent.replace(/\bdont\b/g, "don't").replace(/\bcant\b/g, "can't").replace(/\bim\b/g, "I'm");
+      details = "Insert appropriate apostrophes in contractions (don't, can't, I'm) to satisfy default orthographic rules.";
+    }
+
+    return {
+      originalSentence: sent,
+      status,
+      suggestion,
+      details
+    };
+  });
+
+  const issueCount = breakdown.filter(b => b.status !== "correct").length;
+
+  return {
+    isFallback: true,
+    readabilityScore: Math.round(readabilityScore),
+    sentenceCount,
+    issueCount,
+    restructuredText: breakdown.map(b => b.suggestion).join(" "),
+    breakdown,
+    structuralHighlights: [
+      {
+        topic: "Sentence Flow and Connection",
+        feedback: "Your sentences offer a straightforward expression of core thoughts. Connecting consecutive statements using words like 'accordingly', 'consequently', or 'furthermore' can elevate structural cohesion."
+      },
+      {
+        topic: "Punctuation Standards",
+        feedback: "Excellent practice wrapping declarative details with standard full-stops. This maintains clean logical boundaries for readability."
+      }
+    ]
+  };
+}
+
+function getChallengesFallback() {
+  return {
+    isFallback: true,
+    challenges: [
+      {
+        id: "idiom_of_day",
+        category: "Idiom of the Day",
+        title: "Hit the nail on the head",
+        meaning: "To describe exactly what is causing a situation or problem; to be precisely correct in diagnosis.",
+        dialogExample: "'You hit the nail on the head when you realized that reading practice is central to speech skills.'",
+        instruction: "Write a short sentence using the idiom 'hit the nail on the head' to praise an accurate statement.",
+        phonetic: "hit thuh nayl on thuh hed"
+      },
+      {
+        id: "phonetic_twister",
+        category: "Phonetic Pronunciation Twister",
+        title: "She sells seashells by the seashore",
+        meaning: "A timeless, challenging tongue twister designed to train rapid alternating sibilant 'S' and sibilant-sh 'SH' positions.",
+        dialogExample: "Try repeating it three times fast to refine speech coordination and clear pronunciation.",
+        instruction: "Recite the phrase aloud, making a conscious effort to move tongue positions cleanly between 'S' and 'SH'.",
+        phonetic: "shee selz see-shelz by thuh see-shor"
+      },
+      {
+        id: "phrasal_verb",
+        category: "Phrasal Verb Challenge",
+        title: "Look forward to",
+        meaning: "To feel happy, positive, or eager expectancy towards an upcoming event or action.",
+        dialogExample: "'I really look forward to sharing our test results!'",
+        instruction: "Describe one hobby or activity you are looking forward to this weekend using this phrasal verb.",
+        phonetic: "luk for-werd too"
+      },
+      {
+        id: "workplace_accent",
+        category: "Modern Workplace Accent",
+        title: "Touch base",
+        meaning: "To briefly establish contact or meet to update one another on milestones and goals.",
+        dialogExample: "'Let's touch base on Monday morning to confirm our deployment milestones.'",
+        instruction: "Construct a polite message to coordinate a quick status update with a colleague using the expression 'touch base'.",
+        phonetic: "tuch bays"
+      }
+    ]
+  };
+}
+
+function getEvaluateChallengeFallback(challenge: any, userResponse: string) {
+  const score = Math.max(75, Math.min(100, 75 + Math.round((userResponse || "").length * 0.5)));
+  const keywords = (challenge?.title || "").toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
+  let passed = true;
+  let verdict = "Splendid Job!";
+  let analysis = "A fabulous, highly readable try! Your formulation shows full comprehensibility, and your sentence structures feel very natural inside daily English interactions.";
+
+  let matchedKeyword = false;
+  for (const kw of keywords) {
+    const cleanKw = kw.replace(/[^a-z]/g, "");
+    if ((userResponse || "").toLowerCase().includes(cleanKw)) {
+      matchedKeyword = true;
+    }
+  }
+
+  if (keywords.length > 0 && !matchedKeyword) {
+    verdict = "Intermediary Attempt!";
+    analysis = `You wrote a very fine sentence! To fully secure maximum practice, try to explicitly include the targeted block "${challenge?.title || "prompt"}" directly in your text so that you can verify comfortable tenses usage.`;
+  }
+
+  return {
+    isFallback: true,
+    passed,
+    score,
+    verdict,
+    analysis
+  };
 }
 
 // 1. Interactive Conversation API
@@ -120,76 +392,83 @@ You MUST respond with a strict, parseable JSON object matching this schema:
 
 Do not include any Markdown blocks such as \`\`\`json or trailing commas that violate JSON standards. Output ONLY the raw JSON string.`;
 
-    const result = await generateAiContent(
-      `Here is the conversation history:\n${chatHistoryText}\n\nLast Learner Message to evaluate and respond to: "${userLatestMessage}"`,
-      {
-        systemInstruction: systemPrompt,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            reply: { type: Type.STRING },
-            feedback: {
-              type: Type.OBJECT,
-              properties: {
-                originalText: { type: Type.STRING },
-                correctedText: { type: Type.STRING },
-                grammarScore: { type: Type.INTEGER },
-                corrections: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      error: { type: Type.STRING },
-                      correction: { type: Type.STRING },
-                      explanation: { type: Type.STRING },
+    let data;
+    try {
+      const result = await generateAiContent(
+        `Here is the conversation history:\n${chatHistoryText}\n\nLast Learner Message to evaluate and respond to: "${userLatestMessage}"`,
+        {
+          systemInstruction: systemPrompt,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              reply: { type: Type.STRING },
+              feedback: {
+                type: Type.OBJECT,
+                properties: {
+                  originalText: { type: Type.STRING },
+                  correctedText: { type: Type.STRING },
+                  grammarScore: { type: Type.INTEGER },
+                  corrections: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        error: { type: Type.STRING },
+                        correction: { type: Type.STRING },
+                        explanation: { type: Type.STRING },
+                      },
+                      required: ["error", "correction", "explanation"],
                     },
-                    required: ["error", "correction", "explanation"],
                   },
-                },
-                vocabularyBoosters: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      originalWord: { type: Type.STRING },
-                      betterWord: { type: Type.STRING },
-                      meaning: { type: Type.STRING },
-                      example: { type: Type.STRING },
+                  vocabularyBoosters: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        originalWord: { type: Type.STRING },
+                        betterWord: { type: Type.STRING },
+                        meaning: { type: Type.STRING },
+                        example: { type: Type.STRING },
+                      },
+                      required: ["originalWord", "betterWord", "meaning", "example"],
                     },
-                    required: ["originalWord", "betterWord", "meaning", "example"],
                   },
-                },
-                pronunciationTips: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      word: { type: Type.STRING },
-                      phonetic: { type: Type.STRING },
-                      tip: { type: Type.STRING },
+                  pronunciationTips: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        word: { type: Type.STRING },
+                        phonetic: { type: Type.STRING },
+                        tip: { type: Type.STRING },
+                      },
+                      required: ["word", "phonetic", "tip"],
                     },
-                    required: ["word", "phonetic", "tip"],
                   },
+                  communicationTips: { type: Type.STRING },
                 },
-                communicationTips: { type: Type.STRING },
+                required: ["originalText", "grammarScore", "corrections", "vocabularyBoosters", "pronunciationTips", "communicationTips"],
               },
-              required: ["originalText", "grammarScore", "corrections", "vocabularyBoosters", "pronunciationTips", "communicationTips"],
             },
+            required: ["reply", "feedback"],
           },
-          required: ["reply", "feedback"],
-        },
-      }
-    );
+        }
+      );
 
-    if (!result) {
-      throw new Error("Empty response from AI");
+      if (!result) {
+        throw new Error("Empty response from AI");
+      }
+
+      data = JSON.parse(result);
+    } catch (apiError: any) {
+      console.warn("⚠️ [RECOVERY fallback triggered] Route /api/coach/chat serving simulated response:", apiError.message);
+      data = getChatFallback(userLatestMessage, currentCharacter, currentLevel, currentFocus);
     }
 
-    const data = JSON.parse(result);
     res.json(data);
   } catch (error: any) {
-    console.error("Route /api/coach/chat Error:", error);
+    console.error("Route /api/coach/chat General Error:", error);
     res.status(500).json({ error: error.message || "An error occurred with the AI Coach." });
   }
 });
@@ -232,56 +511,63 @@ Provide a strict, parseable JSON response matching the following schema:
 
 Ensure the output is raw, valid JSON only.`;
 
-    const result = await generateAiContent(
-      `Focus Mode: ${currentFocus}\nText to Analyze:\n"${text}"`,
-      {
-        systemInstruction: systemPrompt,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            readabilityScore: { type: Type.INTEGER },
-            sentenceCount: { type: Type.INTEGER },
-            issueCount: { type: Type.INTEGER },
-            restructuredText: { type: Type.STRING },
-            breakdown: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  originalSentence: { type: Type.STRING },
-                  status: { type: Type.STRING },
-                  suggestion: { type: Type.STRING },
-                  details: { type: Type.STRING },
+    let data;
+    try {
+      const result = await generateAiContent(
+        `Focus Mode: ${currentFocus}\nText to Analyze:\n"${text}"`,
+        {
+          systemInstruction: systemPrompt,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              readabilityScore: { type: Type.INTEGER },
+              sentenceCount: { type: Type.INTEGER },
+              issueCount: { type: Type.INTEGER },
+              restructuredText: { type: Type.STRING },
+              breakdown: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    originalSentence: { type: Type.STRING },
+                    status: { type: Type.STRING },
+                    suggestion: { type: Type.STRING },
+                    details: { type: Type.STRING },
+                  },
+                  required: ["originalSentence", "status", "suggestion", "details"],
                 },
-                required: ["originalSentence", "status", "suggestion", "details"],
+              },
+              structuralHighlights: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    topic: { type: Type.STRING },
+                    feedback: { type: Type.STRING },
+                  },
+                  required: ["topic", "feedback"],
+                },
               },
             },
-            structuralHighlights: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  topic: { type: Type.STRING },
-                  feedback: { type: Type.STRING },
-                },
-                required: ["topic", "feedback"],
-              },
-            },
+            required: ["readabilityScore", "sentenceCount", "issueCount", "restructuredText", "breakdown", "structuralHighlights"],
           },
-          required: ["readabilityScore", "sentenceCount", "issueCount", "restructuredText", "breakdown", "structuralHighlights"],
-        },
-      }
-    );
+        }
+      );
 
-    if (!result) {
-      throw new Error("No response from analysis tool.");
+      if (!result) {
+        throw new Error("No response from analysis tool.");
+      }
+
+      data = JSON.parse(result);
+    } catch (apiError: any) {
+      console.warn("⚠️ [RECOVERY fallback triggered] Route /api/coach/analyze serving simulated response:", apiError.message);
+      data = getAnalyzeFallback(text, currentFocus);
     }
 
-    const data = JSON.parse(result);
     res.json(data);
   } catch (error: any) {
-    console.error("Route /api/coach/analyze Error:", error);
+    console.error("Route /api/coach/analyze General Error:", error);
     res.status(500).json({ error: error.message || "An error occurred with the Grammar Lab AI." });
   }
 });
@@ -314,41 +600,48 @@ Provide a strict, parseable JSON response matching the following schema:
 
 Generate exactly 4 objects in the challenges array, matching the 4 themes described above. Adjust types and categories cleanly. Output raw, valid JSON.`;
 
-    const result = await generateAiContent("Please generate the daily challenges package.", {
-      systemInstruction: systemPrompt,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          challenges: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.STRING },
-                category: { type: Type.STRING },
-                title: { type: Type.STRING },
-                meaning: { type: Type.STRING },
-                dialogExample: { type: Type.STRING },
-                instruction: { type: Type.STRING },
-                phonetic: { type: Type.STRING },
+    let data;
+    try {
+      const result = await generateAiContent("Please generate the daily challenges package.", {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            challenges: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  category: { type: Type.STRING },
+                  title: { type: Type.STRING },
+                  meaning: { type: Type.STRING },
+                  dialogExample: { type: Type.STRING },
+                  instruction: { type: Type.STRING },
+                  phonetic: { type: Type.STRING },
+                },
+                required: ["id", "category", "title", "meaning", "dialogExample", "instruction", "phonetic"],
               },
-              required: ["id", "category", "title", "meaning", "dialogExample", "instruction", "phonetic"],
             },
           },
+          required: ["challenges"],
         },
-        required: ["challenges"],
-      },
-    });
+      });
 
-    if (!result) {
-      throw new Error("No response back from curriculum system.");
+      if (!result) {
+        throw new Error("No response back from curriculum system.");
+      }
+
+      data = JSON.parse(result);
+    } catch (apiError: any) {
+      console.warn("⚠️ [RECOVERY fallback triggered] Route /api/coach/challenges serving simulated response:", apiError.message);
+      data = getChallengesFallback();
     }
 
-    const data = JSON.parse(result);
     res.json(data);
   } catch (error: any) {
-    console.error("Route /api/coach/challenges Error:", error);
+    console.error("Route /api/coach/challenges General Error:", error);
     res.status(500).json({ error: error.message || "An error occurred fetching English challenges." });
   }
 });
@@ -385,29 +678,36 @@ Produce a strict, parseable JSON response matching this schema:
 
 Do not output any introductory or concluding text. Output raw JSON only.`;
 
-    const result = await generateAiContent("Evaluate the user response.", {
-      systemInstruction: systemPrompt,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          passed: { type: Type.BOOLEAN },
-          score: { type: Type.INTEGER },
-          verdict: { type: Type.STRING },
-          analysis: { type: Type.STRING },
+    let data;
+    try {
+      const result = await generateAiContent("Evaluate the user response.", {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            passed: { type: Type.BOOLEAN },
+            score: { type: Type.INTEGER },
+            verdict: { type: Type.STRING },
+            analysis: { type: Type.STRING },
+          },
+          required: ["passed", "score", "verdict", "analysis"],
         },
-        required: ["passed", "score", "verdict", "analysis"],
-      },
-    });
+      });
 
-    if (!result) {
-      throw new Error("No review yielded from AI checker.");
+      if (!result) {
+        throw new Error("No review yielded from AI checker.");
+      }
+
+      data = JSON.parse(result);
+    } catch (apiError: any) {
+      console.warn("⚠️ [RECOVERY fallback triggered] Route /api/coach/challenge/evaluate serving simulated response:", apiError.message);
+      data = getEvaluateChallengeFallback(challenge, userResponse);
     }
 
-    const data = JSON.parse(result);
     res.json(data);
   } catch (error: any) {
-    console.error("Route /api/coach/challenge/evaluate Error:", error);
+    console.error("Route /api/coach/challenge/evaluate General Error:", error);
     res.status(500).json({ error: "Failed to evaluate response." });
   }
 });
