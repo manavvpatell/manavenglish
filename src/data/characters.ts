@@ -11,26 +11,7 @@ export const CHARACTERS: Character[] = [
     avatar: "☕",
     accent: "en-US"
   },
-  {
-    id: "chloe",
-    name: "HR Recruiter - Chloe",
-    role: "Professional Interviewer",
-    personality: "Polite, focused, and professional. Speaks with a distinct American accent. Evaluates expressions for professional impact, business tone, and interview communication rules.",
-    context: "A formal video call interview for a general project management or corporate team position.",
-    exampleDialog: "Thank you for joining me today. To start off, could you briefly describe a challenging work scenario you managed, and how you ensured communication stayed clear?",
-    avatar: "💼",
-    accent: "en-US"
-  },
-  {
-    id: "arthur",
-    name: "Sir Arthur",
-    role: "Intellectual British Scholar",
-    personality: "Polite, academic, and articulate. Uses advanced vocabulary, rich metaphors, and classic British style. Encourages formal syntax and structured speech.",
-    context: "A grand university library lounge, surrounded by old manuscripts, debating the values of classical literature or historical evolution.",
-    exampleDialog: "Splendid of you to venture by the library this afternoon. I was just reviewing an essay on language evolution. Tell me, do you believe modern technology dulls or enriches our written word?",
-    avatar: "🕰️",
-    accent: "en-GB"
-  },
+
   {
     id: "aiden",
     name: "Aiden",

@@ -712,6 +712,553 @@ Do not output any introductory or concluding text. Output raw JSON only.`;
   }
 });
 
+// --- CASINO SUPPORT AGENT SIMULATION API ---
+
+// --- ACCURATE & FAST FAQ PRE-MATCHING ENGINE ---
+
+const CASINO_STOP_WORDS = new Set([
+  "a", "an", "the", "is", "are", "was", "were", "be", "been", "being", "do", "does", "did", "doing", 
+  "how", "what", "why", "where", "when", "who", "which", "i", "me", "my", "myself", "we", "our", "ours", 
+  "us", "you", "your", "yours", "he", "she", "it", "they", "them", "to", "of", "for", "in", "on", "at", 
+  "by", "with", "about", "can", "should", "would", "could", "will", "shall", "must", "please", "kindly"
+]);
+
+function cleanAndTokenize(text: string): string[] {
+  return (text || "")
+    .toLowerCase()
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ")
+    .split(/\s+/)
+    .map(w => w.trim())
+    .filter(w => w.length > 1 && !CASINO_STOP_WORDS.has(w));
+}
+
+function findHighlyAccurateMatch(userMessage: string, faqs: any[]) {
+  if (!userMessage || !Array.isArray(faqs) || faqs.length === 0) return null;
+
+  const userClean = (userMessage || "").trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+  const userTokens = cleanAndTokenize(userMessage);
+
+  if (userTokens.length === 0) return null;
+
+  let bestMatch = null;
+  let highestScore = 0;
+  let matchType: "exact" | "substring" | "fuzzy" = "fuzzy";
+
+  for (const faq of faqs) {
+    if (!faq.question || !faq.answer) continue;
+
+    const qClean = (faq.question || "").trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+    
+    // 1. Exact or very close match check
+    if (userClean === qClean) {
+      return {
+        faq,
+        confidence: 100,
+        matchType: "exact" as const
+      };
+    }
+
+    // 2. Substring containment check
+    if (userClean.length > 6 && qClean.length > 6) {
+      if (userClean.includes(qClean) || qClean.includes(userClean)) {
+        return {
+          faq,
+          confidence: 100,
+          matchType: "substring" as const
+        };
+      }
+    }
+
+    // 3. Keyword / Token overlap calculation
+    const qTokens = cleanAndTokenize(faq.question);
+    if (qTokens.length === 0) continue;
+
+    let intersectionCount = 0;
+    for (const token of userTokens) {
+      if (qTokens.includes(token)) {
+        intersectionCount++;
+      }
+    }
+
+    // Jaccard-like ratio specifically weighted for player query coverage
+    const userCoverage = intersectionCount / userTokens.length;
+    const questionCoverage = intersectionCount / qTokens.length;
+    
+    // Balanced harmonic mean score
+    const harmonicScore = (userCoverage + questionCoverage) / 2;
+
+    if (harmonicScore > highestScore) {
+      highestScore = harmonicScore;
+      bestMatch = faq;
+    }
+  }
+
+  // High confidence threshold (at least 40% clean token alignment, with minimum 1 token matched)
+  if (bestMatch && highestScore >= 0.38) {
+    return {
+      faq: bestMatch,
+      confidence: Math.round(highestScore * 100),
+      matchType: "fuzzy" as const
+    };
+  }
+
+  return null;
+}
+
+function getCasinoFallback(userLatestMessage: string, faqs: any[], personality: string, casinoName: string) {
+  const cleanInput = (userLatestMessage || "").trim().toLowerCase();
+  let bestMatch = null;
+  let highestScore = 0;
+
+  // Keyword match custom FAQ list
+  if (Array.isArray(faqs)) {
+    for (const faq of faqs) {
+      if (!faq.question || !faq.answer) continue;
+      const qLower = faq.question.toLowerCase();
+      let score = 0;
+      const words = cleanInput.split(/\s+/);
+      for (const word of words) {
+        if (word.length > 3 && qLower.includes(word)) {
+          score++;
+        }
+      }
+      if (score > highestScore) {
+        highestScore = score;
+        bestMatch = faq;
+      }
+    }
+  }
+
+  let reply = "";
+  let csat = 85;
+  let status = "Resolved";
+  let tips = "Addressed query with general casino support rules.";
+
+  if (bestMatch && highestScore > 0) {
+    reply = `${bestMatch.answer}`;
+    csat = 98;
+    status = "Resolved";
+    tips = `Direct hit! Answered the player's question using your custom-uploaded Casino Q&A: "${bestMatch.question}".`;
+  } else {
+    // Elegant scenario rules based on keywords
+    if (cleanInput.includes("withdraw") || cleanInput.includes("cashout") || cleanInput.includes("payout") || cleanInput.includes("money") || cleanInput.includes("bank")) {
+      reply = `Thank you for contacting ${casinoName} Player Help. All cashier withdrawals are processed in priority order: standard accounts complete in 24 hours, while our registered VIP and high-tier loyalty members receive instant fast-tracked cashouts! Please ensure your account documents are active under 'My Account > KYC Check'. How else can I assist with your transaction details?`;
+      csat = 90;
+      status = "Resolved";
+      tips = "Guided the player on secure cashier withdrawal procedures and KYC status.";
+    } else if (cleanInput.includes("bonus") || cleanInput.includes("promo") || cleanInput.includes("free spin") || cleanInput.includes("wager") || cleanInput.includes("rollover")) {
+      reply = `We appreciate your interest in our standard gameplay incentives here at ${casinoName}! To ensure highly satisfying outcomes, please remember that our deposit match bonuses carry a standard 30x wagering qualification before funds transition to cash balance. You may view active progress bar tracker on your 'Bonus Desk' dashboard. Can I assist in checking an active promo code for you?`;
+      csat = 92;
+      status = "Resolved";
+      tips = "Explained the wagering mechanics clearly to guarantee player satisfaction with active promotion rules.";
+    } else if (cleanInput.includes("hello") || cleanInput.includes("hi") || cleanInput.includes("hey") || cleanInput.includes("support")) {
+      reply = `Hello and welcome to ${casinoName} Player Concierge support! My name is Alex, your dedicated virtual support agent for today. I am here to make sure you have an exceptionally pleasant and smooth gaming experience. What can I help you check or unlock right now?`;
+      csat = 95;
+      status = "Resolved";
+      tips = "Greeted player cordially, established helpful support presence.";
+    } else if (cleanInput.includes("game") || cleanInput.includes("crash") || cleanInput.includes("lag") || cleanInput.includes("slot") || cleanInput.includes("disconnected")) {
+      reply = `I am very sorry to hear of any technical interruption during your slot spin or table play! Rest assured that our secure gaming core features 'Disconnected Game Recovery' — if a round is interrupted, your potential payout is safely collected, and the session status is recorded on our backend. Could you please provide the approximate round ID or timestamp so I can double-check the server logs for your peace of mind?`;
+      csat = 88;
+      status = "Pending";
+      tips = "Technical slot/game discrepancy query. Handled with built-in Disconnect protection reassurance and requested details.";
+    } else if (cleanInput.includes("limit") || cleanInput.includes("self") || cleanInput.includes("exclude") || cleanInput.includes("responsible")) {
+      reply = `At ${casinoName}, we take Responsible Gaming with absolute priority and focus. We are committed to making sure your experience is safe and satisfying. You have the immediate ability to configure daily deposit limits, cool-off time-outs, or formal self-exclusion under 'Responsible Play Settings' within your dashboard. We're here to help if you would like me to set a cooldown immediately.`;
+      csat = 96;
+      status = "Resolved";
+      tips = "Responsible Gaming guidelines served immediately in strict conformance with player safety standards.";
+    } else {
+      reply = `Thank you for reaching out to us here at ${casinoName}! I want to guarantee you receive the most helpful and accurate answer for your query. Could you please provide your standard player username or account email along with minor details? I will search our player support desk right away so we can resolve this to your complete satisfaction.`;
+      csat = 80;
+      status = "Pending";
+      tips = "General player inquiry un-mapped. Prompted for user ID and custom issue details.";
+    }
+  }
+
+  return {
+    reply,
+    isFallback: true,
+    evaluation: {
+      csat,
+      status,
+      confidence: 90,
+      escalationRequired: status === "Pending",
+      operatorActionTips: tips,
+      suggestedFollowUp: [
+        "Would you like me to prompt our Live VIP cashier manager?",
+        "Can I help look up your active transaction statuses?",
+        "Let me know if there's any game explanation you need!"
+      ]
+    }
+  };
+}
+
+// Helper to detect message topic fingerprint / signature for consecutive queries
+function getMessageTopicSignature(text: string, activeFaqs: any[]): string {
+  if (!text) return "topic-general";
+  const localMatch = findHighlyAccurateMatch(text, activeFaqs);
+  if (localMatch) {
+    return `faq-${localMatch.faq.id}`;
+  }
+  
+  const lower = text.toLowerCase();
+  if (lower.includes("login") || lower.includes("sign up") || lower.includes("register") || lower.includes("account") || lower.includes("suspended") || lower.includes("blocked")) {
+    return "topic-account";
+  }
+  if (lower.includes("password") || lower.includes("reset") || lower.includes("forgot")) {
+    return "topic-password";
+  }
+  if (lower.includes("kyc") || lower.includes("verify") || lower.includes("documents") || lower.includes("id card") || lower.includes("rejection")) {
+    return "topic-kyc";
+  }
+  if (lower.includes("token") || lower.includes("coin") || lower.includes("balance") || lower.includes("sweep") || lower.includes("game")) {
+    return "topic-balance";
+  }
+  if (lower.includes("crash") || lower.includes("loading") || lower.includes("frozen") || lower.includes("slots") || lower.includes("spin")) {
+    return "topic-game-crash";
+  }
+  if (lower.includes("bonus") || lower.includes("promotion") || lower.includes("coupon") || lower.includes("free spin") || lower.includes("referral")) {
+    return "topic-bonus";
+  }
+  if (lower.includes("maintenance") || lower.includes("maintain") || lower.includes("server down")) {
+    return "topic-maintenance";
+  }
+  
+  return "topic-general";
+}
+
+app.post("/api/casino/chat", async (req, res) => {
+  try {
+    const { messages, userLatestMessage, faqs, personality, casinoName } = req.body;
+    
+    const activeCasino = casinoName || "Galaxy Roll Casino";
+    const activePersonality = personality || "Friendly Customer Advocate";
+    const activeFaqs = faqs || [];
+
+    if (!userLatestMessage) {
+      return res.status(400).json({ error: "userLatestMessage is a required field." });
+    }
+
+    // Determine consecutive topic occurrence count in messages history
+    const userMsgs = Array.isArray(messages) ? messages.filter((m: any) => m.role === "user") : [];
+    let occurrenceCount = 1;
+
+    if (userMsgs.length > 1) {
+      const currentSignature = getMessageTopicSignature(userLatestMessage, activeFaqs);
+      if (currentSignature !== "topic-general") {
+        for (let i = userMsgs.length - 2; i >= 0; i--) {
+          const prevSig = getMessageTopicSignature(userMsgs[i].content, activeFaqs);
+          if (prevSig === currentSignature) {
+            occurrenceCount++;
+          } else {
+            break;
+          }
+        }
+      } else {
+        const userClean = userLatestMessage.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+        for (let i = userMsgs.length - 2; i >= 0; i--) {
+          const prevClean = (userMsgs[i].content || "").trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+          const wordsCurrent = userClean.split(/\s+/);
+          const wordsPrev = prevClean.split(/\s+/);
+          let matchCount = 0;
+          for (const w of wordsCurrent) {
+            if (w.length > 3 && wordsPrev.includes(w)) {
+              matchCount++;
+            }
+          }
+          if (matchCount >= 2 || userClean.includes(prevClean) || prevClean.includes(userClean)) {
+            occurrenceCount++;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
+    console.log(`[Support Chat Engine] User requested topic signature "${getMessageTopicSignature(userLatestMessage, activeFaqs)}" for the ${occurrenceCount} time consecutively.`);
+
+    // RULE 3: 3rd consecutive query on the same issue gets escalated to a Support Ticket
+    if (occurrenceCount >= 3) {
+      const ticketId = `TK-${Math.floor(100000 + Math.random() * 900000)}`;
+      return res.json({
+        reply: `I apologize for the continued inconvenience. Recognizing that this issue remains unresolved for you, we have raised an official support ticket (Ticket ID: ${ticketId}) in our player care console. I have flagged this as highly urgent, and our senior desk managers will get back to you directly at your registered email address very shortly to solve this completely!`,
+        evaluation: {
+          csat: 100,
+          status: "Ticket Raised",
+          confidence: 100,
+          escalationRequired: true,
+          operatorActionTips: `Ticket ${ticketId} created automatically. Player has queried this topic 3 or more consecutive times without resolution.`,
+          suggestedFollowUp: [
+            "What is the status of my ticket?",
+            "Can I add another issue to my ticket?",
+            "Return to main menu"
+          ]
+        }
+      });
+    }
+
+    // --- ACCURACY AND SPEED BOOST: FAST PATH LOCAL MATCH CHECK ---
+    const localMatch = findHighlyAccurateMatch(userLatestMessage, activeFaqs);
+    if (localMatch) {
+      const { faq, confidence, matchType } = localMatch;
+      
+      // Determine response based on whether it is the 1st or 2nd time
+      let replyMessage = faq.answer;
+      let extraTips = `Blazing-fast precision match! Bypassed API latency and instantly satisfied user intent via local rule matching (${matchType} match).`;
+      
+      // RULE 2: If occurrenceCount === 2, provide the second, alternative answer
+      if (occurrenceCount === 2) {
+        replyMessage = `I understand that the initial steps did not fully resolve this for you yet, and we want to ensure you are 100% satisfied. Let's try secondary troubleshooting: please clear your browser cookies/cache, make sure no active VPN or proxy is enabled on your device, and try opening a private incognito session. (As a reminder: ${faq.answer}). If you are still facing any trouble, simply chat back one more time and we'll instantly open a priority support ticket for you!`;
+        extraTips = `2nd consecutive attempt matched! Served more detailed, empathetic secondary steps and prepared ticket escalation options.`;
+      }
+
+      // Compute intelligent context-sensitive suggestions based on query category
+      const qText = (faq.question || "").toLowerCase();
+      let suggestedFollowUp = [
+        "How do I withdraw my winnings?",
+        "Why is my Total Balance different?",
+        "Where can I see my transaction history?"
+      ];
+
+      if (qText.includes("withdraw") || qText.includes("payout") || qText.includes("reject") || qText.includes("kyc") || qText.includes("pending")) {
+        suggestedFollowUp = [
+          "Can I withdraw without completing KYC?",
+          "What is the minimum withdrawal amount?",
+          "How do I purchase a package / recharge my account?"
+        ];
+      } else if (qText.includes("purchase") || qText.includes("recharge") || qText.includes("failed") || qText.includes("charged") || qText.includes("payment")) {
+        suggestedFollowUp = [
+          "Which payment methods are accepted?",
+          "Can I get a refund on my purchase?",
+          "My wallet balance is not updating after a purchase."
+        ];
+      } else if (qText.includes("refer") || qText.includes("bonus") || qText.includes("friend")) {
+        suggestedFollowUp = [
+          "I referred a friend but didn't get my referral bonus.",
+          "How does the referral program work?",
+          "Why is my Total Balance different from my Sweep Token balance?"
+        ];
+      }
+
+      return res.json({
+        reply: replyMessage,
+        evaluation: {
+          csat: occurrenceCount === 2 ? 92 : 100,
+          status: occurrenceCount === 2 ? "Pending" : "Resolved",
+          confidence: confidence,
+          escalationRequired: occurrenceCount === 2,
+          operatorActionTips: extraTips,
+          suggestedFollowUp
+        }
+      });
+    }
+
+    // Convert past chat messages for history
+    let historyText = "";
+    if (Array.isArray(messages)) {
+      historyText = messages
+        .slice(-6)
+        .map((m: any) => `${m.role === "user" ? "Player" : "Support Agent"}: ${m.content}`)
+        .join("\n");
+    }
+
+    // Format FAQ knowledge base
+    let faqText = "";
+    if (activeFaqs.length > 0) {
+      faqText = activeFaqs.map((f: any, i: number) => `FAQ #${i+1}\nQ: ${f.question}\nA: ${f.answer}`).join("\n\n");
+    } else {
+      faqText = "No custom FAQs uploaded yet. Answer based on general, high-quality, friendly casino guidelines (deposits, payouts, verification).";
+    }
+
+    const rule2Instruction = occurrenceCount === 2 
+      ? `\n\n--- CRITICAL SUPPORT LEVEL 2 TRIGGER ---\nThe player is asking about this same topic/issue for the SECOND (2nd) consecutive time, which means they are NOT satisfied with our previous explanation. You MUST start with a polite, empathetic apology for the ongoing issue. Then, you MUST provide an alternative, more comprehensive, or deeper explanation (your SECOND/ALTERNATIVE answer) with additional suggestions, to guarantee their absolute satisfaction. Do NOT repeat the previous answer verbatim; suggest checking technical settings, caches, different browsers, or region restrictions. Keep it to 1 to 3 compact, natural sentences.`
+      : "";
+
+    const systemPrompt = `You are an expert, highly professional, polite casino customer support chatbot.
+Casino Brand: ${activeCasino}
+Your Customer Agent Persona: ${activePersonality} (Tailor your tone, warmth, and phrasing to this persona).
+
+--- CASINO FAQS / UPLOADED KNOWLEDGE BASE ---
+Use the following custom rules and sample Q&As to precisely answer the player. If they ask about something defined here, output the answer exactly as specified to satisfy them:
+${faqText}
+${rule2Instruction}
+
+--- SUPPORT PROTOCOLS ---
+1. Provide highly satisfying, clear, resolved answers.
+2. If the user asks a question not explicitly answered in the FAQs, use your excellent training to formulate a reassuring, helpful answer. Remain positive, do not make promises you cannot fulfill (e.g., do not randomly credit money), but outline secure, safe steps the visitor can take.
+3. Be professional. Never break character.
+
+Produce a strict, parseable JSON response containing:
+{
+  "reply": "Your friendly, personalized casino support agent message to the user.",
+  "evaluation": {
+    "csat": 95, // Predicted Customer Satisfaction score (0 to 100) based on how well this message resolves the issue
+    "status": "Resolved", // String: "Resolved" if answered fully, or "Pending" if player details/screenshots are needed, or "Escalated"
+    "confidence": 98, // Percent confidence in matching FAQs or casino guidelines (0 to 100)
+    "escalationRequired": false, // True if a human operator/VIP Host must join immediately to resolve
+    "operatorActionTips": "A helper tooltip describing why this answer was formulated, specifically highlighting if customized FAQs were matched.",
+    "suggestedFollowUp": [
+      "2-3 short, context-appropriate buttons or questions the player might ask next"
+    ]
+  }
+}
+
+Do not include markdown or backticks like \`\`\`json. Return only the raw JSON.`;
+
+    let data;
+    try {
+      const result = await generateAiContent(
+        `Conversation History So Far:\n${historyText}\n\nLatest Player Message: "${userLatestMessage}"`,
+        {
+          systemInstruction: systemPrompt,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              reply: { type: Type.STRING },
+              evaluation: {
+                type: Type.OBJECT,
+                properties: {
+                  csat: { type: Type.INTEGER },
+                  status: { type: Type.STRING },
+                  confidence: { type: Type.INTEGER },
+                  escalationRequired: { type: Type.BOOLEAN },
+                  operatorActionTips: { type: Type.STRING },
+                  suggestedFollowUp: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING }
+                  }
+                },
+                required: ["csat", "status", "confidence", "escalationRequired", "operatorActionTips", "suggestedFollowUp"]
+              }
+            },
+            required: ["reply", "evaluation"]
+          }
+        }
+      );
+
+      if (!result) {
+        throw new Error("Returned empty response from support brain.");
+      }
+
+      data = JSON.parse(result);
+    } catch (apiError: any) {
+      console.warn("⚠️ [RECOVERY fallback triggered] Route /api/casino/chat serving recovery simulation response:", apiError.message);
+      data = getCasinoFallback(userLatestMessage, activeFaqs, activePersonality, activeCasino);
+    }
+
+    res.json(data);
+  } catch (err: any) {
+    console.error("Route /api/casino/chat General Error:", err);
+    res.status(500).json({ error: err.message || "Player support engine experienced an error." });
+  }
+});
+
+app.post("/api/casino/roleplay-player", async (req, res) => {
+  try {
+    const { messages, playerPersona, casinoName } = req.body;
+    
+    const activePersona = playerPersona || "Liam (Impavid High-Roller awaiting a pending withdrawal)";
+    const activeCasino = casinoName || "Grand Roll Casino";
+
+    let historyText = "Conversation Log:\n";
+    if (Array.isArray(messages)) {
+      historyText += messages
+        .slice(-8)
+        .map((m: any) => `${m.role === "user" ? "Player" : "Support Agent"}: ${m.content}`)
+        .join("\n");
+    }
+
+    const systemPrompt = `You are a realistic, in-character human customer/player playing at a Social Sweeps/Casino platform named "${activeCasino}".
+You are currently chatting in real-time in a live help desk chat bubble with their Customer Support Agent.
+Your designated Player Persona is: "${activePersona}"
+
+Your mission is to write the NEXT message in the chat as the player, responding directly and naturally to the support agent's last chat message in the log.
+
+CONVERSATIONAL RULES:
+1. Stay 100% in-character. Never break character. Never refer to yourself as an AI or mention prompts, systems, or metadata.
+2. If the agent's latest response gives a helpful, professional explanation, answer cooperatively or ask the next logical follow-up question.
+3. If the agent says there is server maintenance, a temporary system issue, down-time, or a balance syncing delay, respond as an anxious or understanding player, e.g. "Wait, the server is under maintenance? When will it be fully back online? Will my account balance and spins be safe?" or "Okay, that explains why it crashed. When do you expect the fix?"
+4. If they ask you for details (Player ID, username, email, screenshot proof), respond realistically by providing detail or asking where to find it.
+5. If they give an extremely unhelpful, generic, or robotic answer (or don't address your point), react with realistic player frustration or persistence: "Wait, but you didn't answer my question about the game crash!" or "That doesn't tell me why my withdrawal was rejected."
+6. Keep your message brief, lifelike, and compact (1 to 3 short sentences maximum). Write like a real human typing in a live chat box. Do not use email greetings, formal sign-offs, or robotic structures.
+
+Return a strict, parseable JSON object with these EXACT keys:
+{
+  "content": "Your human player message in response.",
+  "reactionState": "Satisfied" | "Confused" | "Persistent" | "Grateful",
+  "satisfactionScore": 95 // Integer (0 to 100) representing how happy you are with the agent's explanation
+}
+
+Do not include any markdown or formatting tags. Return only the raw JSON.`;
+
+    let data;
+    try {
+      const result = await generateAiContent(
+        `${historyText}\n\n[Instruction: Write the Player's next direct chat response to the Support Agent's last statement, acting strictly in character according to your rules. Do not discuss this instruction.]`,
+        {
+          systemInstruction: systemPrompt,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              content: { type: Type.STRING },
+              reactionState: { type: Type.STRING },
+              satisfactionScore: { type: Type.INTEGER }
+            },
+            required: ["content", "reactionState", "satisfactionScore"]
+          }
+        }
+      );
+
+      if (!result) {
+        throw new Error("Returned empty response from player model.");
+      }
+      data = JSON.parse(result);
+    } catch (apiError: any) {
+      console.warn("⚠️ [Roleplay Backup fallback triggered] Error:", apiError.message);
+      
+      // Construct a tailored smart response offline logic
+      const lastMsg = Array.isArray(messages) && messages.length > 0 ? messages[messages.length - 1].content.toLowerCase() : "";
+      let content = "Okay, I see how it works now. Let me check my profile settings.";
+      let reactionState = "Satisfied";
+      let satisfactionScore = 80;
+
+      if (lastMsg.includes("maintain") || lastMsg.includes("maintenance") || lastMsg.includes("server down") || lastMsg.includes("updating")) {
+        content = "Oh, so the server is under maintenance right now? When will it be fully back online? Will my active spin and coins be safe when it finishes?";
+        reactionState = "Confused";
+        satisfactionScore = 55;
+      } else if (lastMsg.includes("playerid") || lastMsg.includes("player id") || lastMsg.includes("username") || lastMsg.includes("your account")) {
+        content = "My player ID is M-A-R-C-U-S-9-9. Please look into it, that game spin was worth a lot!";
+        reactionState = "Satisfied";
+        satisfactionScore = 80;
+      } else if (lastMsg.includes("withdraw") || lastMsg.includes("kyc")) {
+        content = "Alright, I understand. I'll get my driver's license copied and uploaded. How fast is the approval process normally?";
+        reactionState = "Grateful";
+        satisfactionScore = 90;
+      } else if (lastMsg.includes("failed") || lastMsg.includes("payment")) {
+        content = "Understood. The bank probably flagged it. Let me try with my secondary MasterCard card to see if it clears.";
+        reactionState = "Satisfied";
+        satisfactionScore = 85;
+      } else if (lastMsg.includes("sweep")) {
+        content = "Wait, sweepstakes tokens are promotional only? So I can only play with Sweep Tokens to win real Prize Points?";
+        reactionState = "Confused";
+        satisfactionScore = 70;
+      } else if (lastMsg.includes("refer")) {
+        content = "Okay, let me send the link to my coworker. Hopefully, their purchase registers on my system balance.";
+        reactionState = "Satisfied";
+        satisfactionScore = 95;
+      }
+
+      data = { content, reactionState, satisfactionScore };
+    }
+
+    res.json(data);
+  } catch (err: any) {
+    console.error("Route /api/casino/roleplay-player Error:", err);
+    res.status(500).json({ error: "The Roleplay engine encountered a server error." });
+  }
+});
+
 // 5. Setup Vite Middleware & SPA serving
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {

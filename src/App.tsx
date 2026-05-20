@@ -21,10 +21,11 @@ import {
   Info
 } from "lucide-react";
 import ChatLounge from "./components/ChatLounge";
+import CasinoSupportDesk from "./components/CasinoSupportDesk";
 import { LabAnalysisResult, DailyChallenge, ScoreHistoryItem } from "./types";
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<"chat" | "lab" | "challenges" | "handbook" | "scores">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "lab" | "challenges" | "handbook" | "scores" | "casino">("casino");
   
   // Grammar Lab State
   const [labText, setLabText] = useState("");
@@ -243,6 +244,18 @@ export default function App() {
           {/* Core App Navigation Tabs */}
           <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
             <button
+              onClick={() => setActiveTab("casino")}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                activeTab === "casino" 
+                  ? "bg-white text-emerald-600 shadow-sm font-semibold" 
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+              <span>Casino Help Bot</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab("chat")}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                 activeTab === "chat" 
@@ -359,6 +372,18 @@ export default function App() {
       {/* 3. DYNAMIC WORKSPACE ROUTING */}
       <main className="max-w-7xl mx-auto px-4 py-8">
         <AnimatePresence mode="wait">
+          {activeTab === "casino" && (
+            <motion.div
+              key="casino-tab"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.15 }}
+            >
+              <CasinoSupportDesk />
+            </motion.div>
+          )}
+
           {activeTab === "chat" && (
             <motion.div
               key="chat-tab"
