@@ -1,0 +1,6 @@
+{
+  "name": "English Communication Coach",
+  "description": "Learn and practice English speaking and communication with advanced AI models for real-time feedback, grammar corrections, and custom roleplay situations.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
